@@ -150,7 +150,10 @@ int main(int argc, char *argv[])
    case 'c': clients=atoi(optarg);break;
   }
  }
- 
+
+ /*optind将修改argv[]数组，将选项和参数放在数组前面，其他值放在后面，
+   optind在遍历结束参数后，指向第一个非选项参数索引*/
+ /*URL不作为参数，所以如果optind==argc的话，表示URL没有给出*/
  if(optind==argc) {
                       fprintf(stderr,"webbench: Missing URL!\n");
 		      usage();
@@ -163,7 +166,7 @@ int main(int argc, char *argv[])
  fprintf(stderr,"Webbench - Simple Web Benchmark "PROGRAM_VERSION"\n"
 	 "Copyright (c) Radim Kolar 1997-2004, GPL Open Source Software.\n"
 	 );
- build_request(argv[optind]);
+ build_request(argv[optind]);  //argv[optind] must be a URL
  /* print bench info */
  printf("\nBenchmarking: ");
  switch(method)
@@ -197,20 +200,20 @@ int main(int argc, char *argv[])
  return bench();
 }
 
-void build_request(const char *url)
+void build_request(const char *url)   //解析url，将内容取出来
 {
   char tmp[10];
   int i;
 
-  bzero(host,MAXHOSTNAMELEN);
-  bzero(request,REQUEST_SIZE);
+  bzero(host,MAXHOSTNAMELEN);  //char host[MAXHSOTNAMELEN]，此函数清空host数组
+  bzero(request,REQUEST_SIZE); //清空request数组
 
   if(force_reload && proxyhost!=NULL && http10<1) http10=1;
   if(method==METHOD_HEAD && http10<1) http10=1;
   if(method==METHOD_OPTIONS && http10<2) http10=2;
   if(method==METHOD_TRACE && http10<2) http10=2;
 
-  switch(method)
+  switch(method)  //默认为METHOD_GRT(0)
   {
 	  default:
 	  case METHOD_GET: strcpy(request,"GET");break;
@@ -232,18 +235,19 @@ void build_request(const char *url)
 	 exit(2);
   }
   if(proxyhost==NULL)
-	   if (0!=strncasecmp("http://",url,7)) 
+	   if (0!=strncasecmp("http://",url,7))  //URL必须是以http://开头的
 	   { fprintf(stderr,"\nOnly HTTP protocol is directly supported, set --proxy for others.\n");
              exit(2);
            }
   /* protocol/host delimiter */
-  i=strstr(url,"://")-url+3;
+  i=strstr(url,"://")-url+3;  //此表达式的结果为7，http://是7个字节
   /* printf("%d\n",i); */
 
-  if(strchr(url+i,'/')==NULL) {
-                                fprintf(stderr,"\nInvalid URL syntax - hostname don't ends with '/'.\n");
-                                exit(2);
-                              }
+  if(strchr(url+i,'/')==NULL) //所有要测试的网址都需要以/结尾，例如http://baidu.com/
+  {
+        fprintf(stderr,"\nInvalid URL syntax - hostname don't ends with '/'.\n");
+        exit(2);
+  }
   if(proxyhost==NULL)
   {
    /* get port from hostname */
@@ -258,7 +262,7 @@ void build_request(const char *url)
 	   if(proxyport==0) proxyport=80;
    } else
    {
-     strncpy(host,url+i,strcspn(url+i,"/"));
+     strncpy(host,url+i,strcspn(url+i,"/"));   //strcspn返回需要copy的hostname的长度
    }
    // printf("Host=%s\n",host);
    strcat(request+strlen(request),url+i+strcspn(url+i,"/"));
@@ -271,7 +275,7 @@ void build_request(const char *url)
 	  strcat(request," HTTP/1.0");
   else if (http10==2)
 	  strcat(request," HTTP/1.1");
-  strcat(request,"\r\n");
+      strcat(request,"\r\n");
   if(http10>0)
 	  strcat(request,"User-Agent: WebBench "PROGRAM_VERSION"\r\n");
   if(proxyhost==NULL && http10>0)
