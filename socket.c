@@ -37,7 +37,7 @@ int Socket(const char *host, int clientPort)
     ad.sin_family = AF_INET;
 
     inaddr = inet_addr(host);
-    if (inaddr != INADDR_NONE)
+    if (inaddr != INADDR_NONE) //INADDR_NONE是32位均为1的值
         memcpy(&ad.sin_addr, &inaddr, sizeof(inaddr));
     else
     {
