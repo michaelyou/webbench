@@ -14,7 +14,20 @@
  *    2 - bad param
  *    3 - internal error, fork failed
  * 
+ * Web Bench is very simple tool for benchmarking WWW or proxy servers. 
+ * Uses fork() for simulating multiple clients and 
+ * can use HTTP/0.9-HTTP/1.1 requests. 
+ * This benchmark is not very realistic, 
+ * but it can test if your HTTPD can realy handle that 
+ * many clients at once (try to run some CGIs) 
+ * without taking your machine down. 
+ * Displays pages/min and bytes/sec. 
+ * Can be used in more aggressive mode with -f switch.
  */ 
+
+ /*注释里一些实际的值都是运行实例 webbench -c 100 http://www.baidu.com产生的值*/
+
+ 
 #include "socket.c"
 #include <unistd.h>
 #include <sys/param.h>
@@ -25,7 +38,7 @@
 #include <signal.h>
 
 /* values */
-volatile int timerexpired=0;   //volatile关键字与优化相关
+volatile int timerexpired=0;   //volatile关键字与优化相关，此变量意思为时间到
 int speed=0;
 int failed=0;
 int bytes=0;
@@ -41,7 +54,7 @@ int method=METHOD_GET;
 int clients=1;
 int force=0;
 int force_reload=0;
-int proxyport=80;
+int proxyport=80;             //http的默认端口号为80
 char *proxyhost=NULL;
 int benchtime=30;
 /* internal */
@@ -72,10 +85,14 @@ static const struct option long_options[]=
 
 static void alarm_handler(int signal)
 {
-   timerexpired=1;
+   timerexpired=1;     
 }	
 
 /*prototype 原型*/
+//host值为www.baidu.com
+//port值为80
+//req值为GET / HTTP/1.0\r\nUser-Agent: WebBench 1.5\r\nHost: www.baidu.com\r\n\r\n
+//req的值为向80端口发送的请求的值，http协议会对此请求进行响应
 void benchcore(const char *host,const int port,const char *req)
 {
      int rlen;
@@ -84,14 +101,14 @@ void benchcore(const char *host,const int port,const char *req)
      struct sigaction sa;
 
      /* setup alarm signal handler */
-     sa.sa_handler=alarm_handler;
+     sa.sa_handler=alarm_handler;    //信号处理函数
      sa.sa_flags=0;
-     if(sigaction(SIGALRM,&sa,NULL))
+     if(sigaction(SIGALRM,&sa,NULL))   //处理SIGALRM信号
         exit(3);
-     alarm(benchtime);
+     alarm(benchtime);      //设置定时器，benchtime到后发送SIGALRM信号
 
-     rlen=strlen(req);
-     nexttry:while(1)
+     rlen=strlen(req);      //rlen == 65
+nexttry: while(1)
      {
         if(timerexpired)
         {
@@ -103,31 +120,46 @@ void benchcore(const char *host,const int port,const char *req)
            return;
         }
         s=Socket(host,port);                          
-        if(s<0) { failed++;continue;} 
-        if(rlen!=write(s,req,rlen)) {failed++;close(s);continue;}
+        if(s<0) { 
+            failed++;
+            continue;
+        } 
+        if(rlen!=write(s,req,rlen)) {
+            failed++;
+            close(s);
+            continue;
+        }
         if(http10==0) 
-    	    if(shutdown(s,1)) { failed++;close(s);continue;}
+    	    if(shutdown(s,1)) { 
+    	        failed++;
+    	        close(s);
+    	        continue;
+    	    }
         if(force==0) 
         {
                 /* read all available data from socket */
     	    while(1)
     	    {
-                  if(timerexpired) break; 
-    	      i=read(s,buf,1500);
+                if(timerexpired) 
+                    break; 
+    	        i=read(s,buf,1500);
                   /* fprintf(stderr,"%d\n",i); */
-    	      if(i<0) 
-                  { 
-                     failed++;
-                     close(s);
-                     goto nexttry;
-                  }
-    	       else
-    		       if(i==0) break;
-    		       else
+    	        if(i<0) {     //读失败
+                    failed++;
+                    close(s);
+                    goto nexttry; //跳出多重循环，可以用goto
+                }
+    	        else
+    		        if(i==0) 
+    		            break;
+    		        else
     			       bytes+=i;
     	    }
         }
-        if(close(s)) {failed++;continue;}
+        if(close(s)) {
+            failed++;
+            continue;
+        }
         speed++;
      }
 }
@@ -147,8 +179,9 @@ static int bench(void)
       }
       close(i);
       /* create pipe */
-      if(pipe(mypipe))
-      {
+      //由参数mypipe返回两个文件描述符，mypipe[0]为读而打开，mypipe[1]为写而打开
+     
+      if(pipe(mypipe)) {
     	  perror("pipe failed.");
     	  return 3;
       }
@@ -165,27 +198,29 @@ static int bench(void)
       for(i=0;i<clients;i++)
       {
     	   pid=fork();
-    	   if(pid <= (pid_t) 0)
+    	   if(pid <= (pid_t) 0)    //pid=0的是子进程
     	   {
     		   /* child process or error*/
-    	       sleep(1); /* make childs faster */
+    		   //这里是子程序应该执行的地方，下面的break让子程序跳出循环，
+    		   //不然子程序也会执行for循环来创建子进程
+    	       //sleep(1); /* make childs faster */
     		   break;
     	   }
       }
 
-      if( pid< (pid_t) 0)
+      if(pid< (pid_t) 0)
       {
           fprintf(stderr,"problems forking worker no. %d\n",i);
     	  perror("fork failed.");
     	  return 3;
       }
 
-      if(pid== (pid_t) 0)
+      if(pid == (pid_t) 0)
       {
         /* I am a child */
         if(proxyhost==NULL)
           benchcore(host,proxyport,request);
-             else
+        else
           benchcore(proxyhost,proxyport,request);
 
              /* write results to pipe */
@@ -201,6 +236,7 @@ static int bench(void)
     	 return 0;
       } else
       {
+          /*read results from pipe*/
     	  f=fdopen(mypipe[0],"r");
     	  if(f==NULL) 
     	  {
@@ -209,15 +245,15 @@ static int bench(void)
     	  }
     	  setvbuf(f,NULL,_IONBF,0);
     	  speed=0;
-              failed=0;
-              bytes=0;
+          failed=0;
+          bytes=0;
 
     	  while(1)
     	  {
     		  pid=fscanf(f,"%d %d %d",&i,&j,&k);
     		  if(pid<2)
                       {
-                           fprintf(stderr,"Some of our childrens died.\n");
+                           fprintf(stderr,"Some of our children died.\n");
                            break;
                       }
     		  speed+=i;
@@ -237,7 +273,8 @@ static int bench(void)
       return i;
 }
 
-void build_request(const char *url)   //解析url，将内容取出来
+/*此函数解析url，将内容取出来，给需要的各个变量赋值，url=http://www.baidu.com/*/
+void build_request(const char *url) 
 {
     char tmp[10];
     int i;
