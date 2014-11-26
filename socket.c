@@ -34,9 +34,10 @@ int Socket(const char *host, int clientPort)
     struct hostent *hp;
     
     memset(&ad, 0, sizeof(ad));
-    ad.sin_family = AF_INET;
+    ad.sin_family = AF_INET;   //ipv4
 
-    inaddr = inet_addr(host);
+    /*host=www.baidu.com*/
+    inaddr = inet_addr(host);  //此时的host值不是有效的ip地址，所以返回INADDR_NONE
     if (inaddr != INADDR_NONE) //INADDR_NONE是32位均为1的值
         memcpy(&ad.sin_addr, &inaddr, sizeof(inaddr));
     else
@@ -46,7 +47,7 @@ int Socket(const char *host, int clientPort)
             return -1;
         memcpy(&ad.sin_addr, hp->h_addr, hp->h_length);
     }
-    ad.sin_port = htons(clientPort);
+    ad.sin_port = htons(clientPort);   //主机序转换为网络序
     
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0)

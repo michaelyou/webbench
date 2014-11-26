@@ -110,7 +110,7 @@ void benchcore(const char *host,const int port,const char *req)
      rlen=strlen(req);      //rlen == 65
 nexttry: while(1)
      {
-        if(timerexpired)
+        if(timerexpired)    //测试网站直到时间耗尽
         {
            if(failed>0)
            {
@@ -124,13 +124,13 @@ nexttry: while(1)
             failed++;
             continue;
         } 
-        if(rlen!=write(s,req,rlen)) {
+        if(rlen!=write(s,req,rlen)) {  //往服务器发request
             failed++;
-            close(s);
+            close(s);  //关闭连接，进入下一次连接
             continue;
         }
-        if(http10==0) 
-    	    if(shutdown(s,1)) { 
+        if(http10==0)     //实例中http10=1
+    	    if(shutdown(s,1)) {  //关闭套接字上数据的接收与发送，1为关闭写功能
     	        failed++;
     	        close(s);
     	        continue;
@@ -160,7 +160,7 @@ nexttry: while(1)
             failed++;
             continue;
         }
-        speed++;
+        speed++;      //speed代表的是成功访问的次数
      }
 }
 
@@ -237,25 +237,26 @@ static int bench(void)
       } else
       {
           /*read results from pipe*/
-    	  f=fdopen(mypipe[0],"r");
+    	  f=fdopen(mypipe[0],"r");   //返回流
     	  if(f==NULL) 
     	  {
     		  perror("open pipe for reading failed.");
     		  return 3;
     	  }
-    	  setvbuf(f,NULL,_IONBF,0);
+    	  //把缓冲区与流相关，f将变成无缓冲的
+    	  setvbuf(f,NULL,_IONBF,0);  
     	  speed=0;
           failed=0;
           bytes=0;
 
-    	  while(1)
+    	  while(1)//获取子程序传过来的speed等参数
     	  {
-    		  pid=fscanf(f,"%d %d %d",&i,&j,&k);
+    		  pid=fscanf(f,"%d %d %d",&i,&j,&k);   //子进程将值传过来，i=speed,j=failed,k=bytes
     		  if(pid<2)
-                      {
-                           fprintf(stderr,"Some of our children died.\n");
-                           break;
-                      }
+              {
+                   fprintf(stderr,"Some of our children died.\n");
+                   break;
+              }
     		  speed+=i;
     		  failed+=j;
     		  bytes+=k;
@@ -274,6 +275,7 @@ static int bench(void)
 }
 
 /*此函数解析url，将内容取出来，给需要的各个变量赋值，url=http://www.baidu.com/*/
+/*配置host, port, request*/
 void build_request(const char *url) 
 {
     char tmp[10];
